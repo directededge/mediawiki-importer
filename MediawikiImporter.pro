@@ -4,7 +4,6 @@
 
 TEMPLATE = app
 QT -= gui
-TARGET = 
 DEPENDPATH += .
 INCLUDEPATH += .
 SOURCES += WikipediaAdapter.cpp

@@ -178,22 +178,18 @@ public:
         add("company");
         add("film");
         add("musician", list("musician", "musical artist"));
-        add("writer", list("author"));
+        add("author", list("writer"));
     }
 
     QStringList find(const QString &text) const
     {
+        QRegExp clone(m_any);
+
         QStringList values;
 
-        if(text.contains(m_any))
+        if(text.contains(clone))
         {
-            for(int i = 0; i < m_expressions.size(); i++)
-            {
-                if(text.contains(m_expressions[i]))
-                {
-                    values.append(m_names[i]);
-                }
-            }
+            values.append(m_map[clone.cap(1).toLower()]);
         }
 
         return values;
@@ -206,16 +202,19 @@ private:
         static const QString prefix = "\\{\\{\\s*Infobox[_ ]";
         static const QString postfix = "\\s*\\W";
 
-        m_names.append(name);
+        if(patterns.isEmpty())
+        {
+            m_map[name] = name;
+        }
+        else
+        {
+            for(QStringList::ConstIterator it = patterns.begin(); it != patterns.end(); ++it)
+            {
+                m_map[*it] = name;
+            }
+        }
 
-        QString pattern = patterns.isEmpty() ? name : join(patterns);
-
-        QRegExp expression(prefix + pattern + postfix, Qt::CaseInsensitive);
-        m_expressions.append(expression);
-
-        m_patterns += (patterns.isEmpty() ? QStringList(name) : patterns);
-
-        m_any.setPattern(prefix + join(m_patterns) + postfix);
+        m_any.setPattern(prefix + join(m_map.keys()) + postfix);
         m_any.setCaseSensitivity(Qt::CaseInsensitive);
     }
 
@@ -232,12 +231,10 @@ private:
 
     QString join(const QStringList &patterns)
     {
-        return "(" + patterns.join(")|(") + ")";
+        return "(" + patterns.join("|") + ")";
     }
 
-    QStringList m_names;
-    QStringList m_patterns;
-    QList<QRegExp> m_expressions;
+    QHash<QString, QString> m_map;
     QRegExp m_any;
 };
 
@@ -339,7 +336,7 @@ template <class PageHandler> void parse(PageHandler &handler)
     static const QString titleToken = "title";
     static const QString textToken = "text";
 
-    while(!xml.atEnd() && pageCount < 10000)
+    while(!xml.atEnd())
     {
         QXmlStreamReader::TokenType type = xml.readNext();
 
@@ -355,7 +352,7 @@ template <class PageHandler> void parse(PageHandler &handler)
         {
             handler(title, text);
 
-            if(++pageCount % 100 == 0)
+            if(++pageCount % 1000 == 0)
             {
                 qDebug() << QString::number(pageCount) + " pages finished.";
             }
