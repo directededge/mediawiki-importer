@@ -88,7 +88,7 @@ static QString &expandEntities(QString &text)
 
     while((offset = entity.indexIn(text, offset)) != -1)
     {
-        text.replace(offset, entity.matchedLength(), entity.cap(1));
+        text.replace(offset, entity.matchedLength(), entities[entity.cap(1).toLower()]);
     }
 
     return text;
@@ -105,7 +105,7 @@ static QString formatTitle(QString title)
 
     title.replace('_', ' ');
 
-    return title;
+    return title.trimmed();
 }
 
 static QStringList extractLinks(const QString &text)
@@ -124,7 +124,13 @@ static QStringList extractLinks(const QString &text)
         if(!value.contains(':'))
         {
             value = value.section('|', 0, 0);
-            values.append(formatTitle(value));
+            value = value.section('#', 0, 0);
+            value = formatTitle(value);
+
+            if(!value.isEmpty())
+            {
+                values.append(value);
+            }
         }
     }
 
