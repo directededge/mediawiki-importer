@@ -293,9 +293,18 @@ public:
 
 private:
 
-    void sanitizeLinks(const QStringList &links)
+    void sanitizeLinks(QStringList &links)
     {
+        for(QStringList::Iterator it = links.begin(); it != links.end(); ++it)
+        {
+            QSet<QString> checked;
 
+            while(RedirectBuilder::redirects.contains(*it) && !checked.contains(*it))
+            {
+                checked.insert(*it);
+                *it = RedirectBuilder::redirects[*it];
+            }
+        }
     }
 
     QFile m_file;
@@ -323,7 +332,7 @@ template <class PageHandler> void parse(PageHandler &handler)
     static const QString titleToken = "title";
     static const QString textToken = "text";
 
-    while(!xml.atEnd() && pageCount < 70000)
+    while(!xml.atEnd() && pageCount)
     {
         QXmlStreamReader::TokenType type = xml.readNext();
 
@@ -337,8 +346,12 @@ template <class PageHandler> void parse(PageHandler &handler)
         }
         else if(type == QXmlStreamReader::EndElement && xml.name() == pageToken)
         {
-            pageCount++;
             handler(title, text);
+
+            if(pageCount++ % 10000)
+            {
+                qDebug() << QString::number(pageCount) + "pages finished.";
+            }
         }
     }
 }
