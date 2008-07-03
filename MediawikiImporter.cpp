@@ -79,7 +79,7 @@ static QString &expandEntities(QString &text)
         entities["upsilon"] = QChar(0x3c5);  entities["uuml"] = QChar(0xfc);      entities["weierp"] = QChar(0x2118);
         entities["xi"] = QChar(0x3be);       entities["yacute"] = QChar(0xfd);    entities["yen"] = QChar(0xa5);
         entities["yuml"] = QChar(0xff);      entities["zeta"] = QChar(0x3b6);     entities["zwj"] = QChar(0x200d);
-        entities["zwnj"] = QChar(0x200c); 
+        entities["zwnj"] = QChar(0x200c);
     }
 
     static QRegExp entity("&(\\w+);");
@@ -112,17 +112,27 @@ static QStringList extractLinks(const QString &text)
 {
     static QRegExp links("\\[\\[([^\\]]+)\\]\\]");
 
-    QStringList values;
+    QSet<QString> values;
 
     int offset = 0;
 
     while((offset = links.indexIn(text, offset)) != -1)
     {
         offset += links.matchedLength();
-        values.append(formatTitle(links.cap(1)));
+        QString value = links.cap(1);
+
+        if(!value.contains(':'))
+        {
+            value = value.section('|', 0, 0);
+            values.insert(formatTitle(value));
+        }
     }
 
-    return values;
+    QStringList list = values.toList();
+
+    list.sort();
+    
+    return list;
 }
 
 static bool isRedirect(const QString &text)
