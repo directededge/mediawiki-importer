@@ -112,7 +112,7 @@ static QStringList extractLinks(const QString &text)
 {
     static QRegExp links("\\[\\[([^\\]]+)\\]\\]");
 
-    QSet<QString> values;
+    QStringList values;
 
     int offset = 0;
 
@@ -124,15 +124,11 @@ static QStringList extractLinks(const QString &text)
         if(!value.contains(':'))
         {
             value = value.section('|', 0, 0);
-            values.insert(formatTitle(value));
+            values.append(formatTitle(value));
         }
     }
 
-    QStringList list = values.toList();
-
-    list.sort();
-    
-    return list;
+		return values;
 }
 
 static bool isRedirect(const QString &text)
@@ -309,6 +305,9 @@ private:
                 *it = RedirectBuilder::redirects[*it];
             }
         }
+
+        links = links.toSet().toList();
+        links.sort();
     }
 
     QFile m_file;
