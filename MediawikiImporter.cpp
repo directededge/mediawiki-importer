@@ -332,7 +332,7 @@ template <class PageHandler> void parse(PageHandler &handler)
     static const QString titleToken = "title";
     static const QString textToken = "text";
 
-    while(!xml.atEnd() && pageCount)
+    while(!xml.atEnd())
     {
         QXmlStreamReader::TokenType type = xml.readNext();
 
