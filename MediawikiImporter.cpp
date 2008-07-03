@@ -97,15 +97,15 @@ static QString &expandEntities(QString &text)
 static QString formatTitle(QString title)
 {
     expandEntities(title);
+    title.replace('_', ' ');
+    title = title.trimmed();
 
     if(!title.isEmpty())
     {
         title[0] = title[0].toUpper();
     }
 
-    title.replace('_', ' ');
-
-    return title.trimmed();
+    return title;
 }
 
 static QStringList extractLinks(const QString &text)
