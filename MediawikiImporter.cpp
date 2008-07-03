@@ -84,13 +84,11 @@ static QString &expandEntities(QString &text)
 
     static QRegExp entity("&(\\w+);");
 
-    QRegExp clone(entity);
-
     int offset = 0;
 
     while((offset = entity.indexIn(text, offset)) != -1)
     {
-        text.replace(offset, clone.matchedLength(), clone.cap(1));
+        text.replace(offset, entity.matchedLength(), entity.cap(1));
     }
 
     return text;
@@ -112,17 +110,16 @@ static QString formatTitle(QString title)
 
 static QStringList extractLinks(const QString &text)
 {
-    static const QRegExp links("\\[\\[([^\\]]+)\\]\\]");
+    static QRegExp links("\\[\\[([^\\]]+)\\]\\]");
 
-    QRegExp clone(links);
     QStringList values;
 
     int offset = 0;
 
-    while((offset = clone.indexIn(text, offset)) != -1)
+    while((offset = links.indexIn(text, offset)) != -1)
     {
-        offset += clone.matchedLength();
-        values.append(formatTitle(clone.cap(1)));
+        offset += links.matchedLength();
+        values.append(formatTitle(links.cap(1)));
     }
 
     return values;
@@ -332,7 +329,7 @@ template <class PageHandler> void parse(PageHandler &handler)
     static const QString titleToken = "title";
     static const QString textToken = "text";
 
-    while(!xml.atEnd())
+    while(!xml.atEnd() && pageCount < 10000)
     {
         QXmlStreamReader::TokenType type = xml.readNext();
 
@@ -348,9 +345,9 @@ template <class PageHandler> void parse(PageHandler &handler)
         {
             handler(title, text);
 
-            if(pageCount++ % 10000)
+            if(++pageCount % 100 == 0)
             {
-                qDebug() << QString::number(pageCount) + "pages finished.";
+                qDebug() << QString::number(pageCount) + " pages finished.";
             }
         }
     }
