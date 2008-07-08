@@ -1,7 +1,12 @@
+#include <QCoreApplication>
 #include <QXmlStreamReader>
 #include <QXmlStreamWriter>
 #include <QStringList>
 #include <QFile>
+#include <QSqlQuery>
+#include <QSqlError>
+#include <QVariant>
+#include <QUrl>
 #include <QDebug>
 
 /*
@@ -9,6 +14,22 @@
  * some of these things millions of times and want to avoid creating objects over
  * and over again.
  */
+
+#define DISAMBIGS "disambigs.txt"
+#define REDIRECTS "redirects.txt"
+
+#define SETUP_STREAM(name, mode)                \
+    QFile file(name);                           \
+                                                \
+    if(!file.open(mode))                        \
+    {                                           \
+        qDebug("Could not open file.");         \
+        return;                                 \
+    }                                           \
+                                                \
+    QTextStream stream(&file);                  \
+    stream.setCodec("UTF-8")
+
 
 static QString &expandEntities(QString &text)
 {
@@ -134,7 +155,7 @@ static QStringList extractLinks(const QString &text)
         }
     }
 
-		return values;
+    return values;
 }
 
 static bool isRedirect(const QString &text)
@@ -160,15 +181,41 @@ public:
 
             if(!links.isEmpty())
             {
-                redirects[title] = links.front();
+                m_redirects[title] = links.front();
             }
         }
     }
 
-    static QHash<QString, QString> redirects;
+    static void resolveRedirects(QString &target)
+    {
+        QSet<QString> checked;
+
+        while(m_redirects.contains(target) && !checked.contains(target))
+        {
+            checked.insert(target);
+            target = m_redirects[target];
+        }
+    }
+
+    void print() const
+    {
+        SETUP_STREAM(REDIRECTS, QIODevice::WriteOnly);
+
+        for(QHash<QString, QString>::ConstIterator it = m_redirects.begin();
+            it != m_redirects.end(); ++it)
+        {
+            QString source = it.key();
+            QString target = it.value();
+            resolveRedirects(target);
+
+            stream << source << "|" << target << "\n";
+        }
+    }
+
+    static QHash<QString, QString> m_redirects;
 };
 
-QHash<QString, QString> RedirectBuilder::redirects;
+QHash<QString, QString> RedirectBuilder::m_redirects;
 
 class Infoboxes
 {
@@ -198,7 +245,6 @@ public:
     }
 
 private:
-
     void add(const QString &name, const QStringList &patterns = QStringList())
     {
         static const QString prefix = "\\{\\{\\s*Infobox[_ ]";
@@ -246,7 +292,8 @@ public:
 
     XMLWriter() :
         m_file("output.xml"),
-        m_xml(&m_file)
+        m_xml(&m_file),
+        m_disambigsFile(DISAMBIGS)
     {
         m_file.open(QIODevice::WriteOnly);
 
@@ -255,6 +302,10 @@ public:
         m_xml.writeStartDocument();
         m_xml.writeStartElement("directededge");
         m_xml.writeAttribute("version", "0.1");
+
+        m_disambigsFile.open(QIODevice::WriteOnly);
+        m_disambigsStream.setDevice(&m_disambigsFile);
+        m_disambigsStream.setCodec("UTF-8");
     }
 
     ~XMLWriter()
@@ -265,8 +316,14 @@ public:
 
     void operator()(const QString &title, const QString &text)
     {
-        if(title.contains(':') || isDisambig(text) || isRedirect(text))
+        if(title.contains(':') || isRedirect(text))
         {
+            return;
+        }
+
+        if(isDisambig(text))
+        {
+            m_disambigsStream << title << "\n";
             return;
         }
 
@@ -279,7 +336,7 @@ public:
         QStringList tags = infoboxes.find(text);
         QStringList links = extractLinks(text);
 
-				sanitizeLinks(links);
+        sanitizeLinks(links);
 
         m_xml.writeStartElement(itemToken);
         m_xml.writeAttribute(idToken, formatTitle(title));
@@ -303,13 +360,7 @@ private:
     {
         for(QStringList::Iterator it = links.begin(); it != links.end(); ++it)
         {
-            QSet<QString> checked;
-
-            while(RedirectBuilder::redirects.contains(*it) && !checked.contains(*it))
-            {
-                checked.insert(*it);
-                *it = RedirectBuilder::redirects[*it];
-            }
+            RedirectBuilder::resolveRedirects(*it);
         }
 
         links = links.toSet().toList();
@@ -318,6 +369,9 @@ private:
 
     QFile m_file;
     QXmlStreamWriter m_xml;
+
+    QFile m_disambigsFile;
+    QTextStream m_disambigsStream;
 };
 
 template <class PageHandler> void parse(PageHandler &handler)
@@ -365,13 +419,123 @@ template <class PageHandler> void parse(PageHandler &handler)
     }
 }
 
-int main()
+static void decode(QString &value)
 {
-    RedirectBuilder redirectBuilder;
-    parse(redirectBuilder);
+    value = QUrl::fromPercentEncoding(value.toUtf8());
+}
 
-    XMLWriter xmlWriter;
-    parse(xmlWriter);
+static void disambigsToDatabase()
+{
+
+    QSqlQuery idQuery("SELECT MAX(id) FROM pages");
+
+    if(!idQuery.next())
+    {
+        qDebug("Could not fetch last id.");
+        return;
+    }
+
+    int id = idQuery.value(0).toInt();
+
+    SETUP_STREAM(DISAMBIGS, QIODevice::ReadOnly);
+
+    int count = 0;
+
+    for(QString line = stream.readLine(); !stream.atEnd(); line = stream.readLine())
+    {
+        decode(line);
+
+        QSqlQuery query;
+        query.prepare("INSERT INTO pages VALUES( ?, ? )");
+        query.addBindValue(++id);
+        query.addBindValue(line);
+        query.exec();
+
+        if(++count % 1000 == 0)
+        {
+            qDebug() << count << "disambigs processed.";
+        }
+    }
+}
+
+static void redirectsToDatabase()
+{
+    SETUP_STREAM(REDIRECTS, QIODevice::ReadOnly);
+
+    int count = 0;
+
+    for(QString line = stream.readLine(); !stream.atEnd(); line = stream.readLine())
+    {
+        QStringList fields = line.split('|');
+
+        if(fields.size() < 2)
+        {
+            continue;
+        }
+
+        decode(fields[0]);
+        decode(fields[1]);
+
+        QSqlQuery idQuery;
+        idQuery.prepare("SELECT id FROM pages WHERE name " /* COLLATE utf8_bin */ "= ?");
+        idQuery.addBindValue(fields[1]);
+
+        if(idQuery.exec() && idQuery.next())
+        {
+            QSqlQuery query("INSERT INTO redirects VALUES( ?, ? )");
+            query.addBindValue(fields[0]);
+            query.addBindValue(idQuery.value(0).toInt());
+            query.exec();
+        }
+        else
+        {
+            qDebug() << "Could not find " << fields[1] << " in database."
+                     << idQuery.lastError().text();
+        }
+
+        if(++count % 1000 == 0)
+        {
+            qDebug() << count << "redirects processed.";
+        }
+    }    
+}
+
+static void database()
+{
+    QSqlDatabase db = QSqlDatabase::addDatabase("QMYSQL");
+    db.setHostName("localhost");
+    db.setDatabaseName("related_wikipedia");
+    db.setUserName("scott");
+
+    if(db.open())
+    {
+        disambigsToDatabase();
+        redirectsToDatabase();
+    }
+    else
+    {
+        qDebug("Could not connect to database.");
+    }
+}
+
+int main(int argc, char *argv[])
+{
+    QCoreApplication app(argc, argv);
+
+    if(app.arguments().contains("--database"))
+    {
+        database();
+    }
+    else
+    {
+        RedirectBuilder redirectBuilder;
+        parse(redirectBuilder);
+
+        redirectBuilder.print();
+
+        XMLWriter xmlWriter;
+        parse(xmlWriter);
+    }
 
     return 0;
 }

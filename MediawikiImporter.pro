@@ -4,6 +4,7 @@
 
 TEMPLATE = app
 QT -= gui
+QT += sql
 DEPENDPATH += .
 INCLUDEPATH += .
 SOURCES += WikipediaAdapter.cpp
