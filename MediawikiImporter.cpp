@@ -291,7 +291,7 @@ class XMLWriter
 public:
 
     XMLWriter() :
-        m_file("output.xml"),
+        m_file("mediawiki.xml"),
         m_xml(&m_file),
         m_disambigsFile(DISAMBIGS)
     {
@@ -374,9 +374,9 @@ private:
     QTextStream m_disambigsStream;
 };
 
-template <class PageHandler> void parse(PageHandler &handler)
+template <class PageHandler> void parse(const QString &fileName, PageHandler &handler)
 {
-    QFile file("wikipedia.xml");
+    QFile file(fileName);
 
     if(!file.open(QIODevice::ReadOnly))
     {
@@ -521,20 +521,23 @@ static void database()
 int main(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
+    QStringList arguments = app.arguments();
 
-    if(app.arguments().contains("--database"))
+    arguments.removeFirst();
+
+    if(arguments.contains("--database"))
     {
         database();
     }
-    else
+    else if(!arguments.isEmpty())
     {
         RedirectBuilder redirectBuilder;
-        parse(redirectBuilder);
+        parse(arguments.front(), redirectBuilder);
 
         redirectBuilder.print();
 
         XMLWriter xmlWriter;
-        parse(xmlWriter);
+        parse(arguments.front(), xmlWriter);
     }
 
     return 0;
