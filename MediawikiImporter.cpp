@@ -329,7 +329,7 @@ public:
 
         static const QString itemToken = "item";
         static const QString idToken = "id";
-        static const QString typeToken = "type";
+        static const QString tagToken = "tag";
         static const QString linkToken = "link";
         static const Infoboxes infoboxes;
 
@@ -343,7 +343,7 @@ public:
 
         for(QStringList::ConstIterator it = tags.begin(); it != tags.end(); ++it)
         {
-            m_xml.writeTextElement(typeToken, *it);
+            m_xml.writeTextElement(tagToken, *it);
         }
 
         for(QStringList::ConstIterator it = links.begin(); it != links.end(); ++it)
@@ -497,7 +497,7 @@ static void redirectsToDatabase()
         {
             qDebug() << count << "redirects processed.";
         }
-    }    
+    }
 }
 
 static void database()
