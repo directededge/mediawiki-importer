@@ -5,6 +5,7 @@
 TEMPLATE = app
 QT -= gui
 QT += sql xml
+CONFIG -= app_bundle
 DEPENDPATH += .
 INCLUDEPATH += .
 SOURCES += MediawikiImporter.cpp
